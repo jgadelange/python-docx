@@ -27,6 +27,9 @@ try:
 except ImportError:
     TAGS = {}
 
+from exceptions import PendingDeprecationWarning
+from warnings import warn
+
 import logging
 
 
@@ -412,6 +415,9 @@ def table(contents, heading=True, colw=None, cwunit='dxa', tblw=0, twunit='auto'
 def picture(relationshiplist, picname, picdescription, pixelwidth=None, pixelheight=None, nochangeaspect=True, nochangearrowheads=True, imagefiledict=None):
     '''Take a relationshiplist, picture file name, and return a paragraph containing the image
     and an updated relationshiplist'''
+    if imagefiledict is None:
+        warn('Using picture() without imagefiledict parameter will be deprecated in the future.', PendingDeprecationWarning)
+
     # http://openxmldeveloper.org/articles/462.aspx
     # Create an image. Size may be specified, otherwise it will based on the
     # pixel size of image. Return a paragraph containing the picture
@@ -965,6 +971,9 @@ def wordrelationships(relationshiplist):
 
 def savedocx(document, coreprops, appprops, contenttypes, websettings, wordrelationships, output, imagefiledict=None):
     '''Save a modified document'''
+    if imagefiledict is None:
+        warn('Using savedocx() without imagefiledict parameter will be deprecated in the future.', PendingDeprecationWarning)
+
     assert os.path.isdir(template_dir)
     docxfile = zipfile.ZipFile(output, mode='w', compression=zipfile.ZIP_DEFLATED)
 
