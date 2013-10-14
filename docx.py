@@ -58,16 +58,20 @@ nsprefixes = {
     'mv':  'urn:schemas-microsoft-com:mac:vml',
     'pic': 'http://schemas.openxmlformats.org/drawingml/2006/picture',
     'v':   'urn:schemas-microsoft-com:vml',
-    'wp':  'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing',
+    'wp':  ('http://schemas.openxmlformats.org/drawingml/2006/wordprocessing'
+            'Drawing'),
     # Properties (core and extended)
-    'cp':  'http://schemas.openxmlformats.org/package/2006/metadata/core-properties',
+    'cp':  ('http://schemas.openxmlformats.org/package/2006/metadata/core-pr'
+            'operties'),
     'dc':  'http://purl.org/dc/elements/1.1/',
-    'ep':  'http://schemas.openxmlformats.org/officeDocument/2006/extended-properties',
+    'ep':  ('http://schemas.openxmlformats.org/officeDocument/2006/extended-'
+            'properties'),
     'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
     # Content Types
     'ct':  'http://schemas.openxmlformats.org/package/2006/content-types',
     # Package Relationships
-    'r':   'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
+    'r':  ('http://schemas.openxmlformats.org/officeDocument/2006/relationsh'
+           'ips'),
     'pr':  'http://schemas.openxmlformats.org/package/2006/relationships',
     # Dublin Core document properties
     'dcmitype': 'http://purl.org/dc/dcmitype/',
@@ -88,7 +92,8 @@ def newdocument():
     return document
 
 
-def makeelement(tagname, tagtext=None, nsprefix='w', attributes=None, attrnsprefix=None):
+def makeelement(tagname, tagtext=None, nsprefix='w', attributes=None,
+                attrnsprefix=None):
     '''Create an element & return it'''
     # Deal with list of nsprefix by making namespacemap
     namespacemap = None
@@ -106,10 +111,11 @@ def makeelement(tagname, tagtext=None, nsprefix='w', attributes=None, attrnspref
     newelement = etree.Element(namespace+tagname, nsmap=namespacemap)
     # Add attributes with namespaces
     if attributes:
-        # If they haven't bothered setting attribute namespace, use an empty string
-        # (equivalent of no namespace)
+        # If they haven't bothered setting attribute namespace, use an empty
+        # string (equivalent of no namespace)
         if not attrnsprefix:
-            # Quick hack: it seems every element that has a 'w' nsprefix for its tag uses the same prefix for it's attributes
+            # Quick hack: it seems every element that has a 'w' nsprefix for
+            # its tag uses the same prefix for it's attributes
             if nsprefix == 'w':
                 attributenamespace = namespace
             else:
@@ -118,7 +124,8 @@ def makeelement(tagname, tagtext=None, nsprefix='w', attributes=None, attrnspref
             attributenamespace = '{'+nsprefixes[attrnsprefix]+'}'
 
         for tagattribute in attributes:
-            newelement.set(attributenamespace+tagattribute, attributes[tagattribute])
+            newelement.set(attributenamespace+tagattribute,
+                           attributes[tagattribute])
     if tagtext:
         newelement.text = tagtext
     return newelement
@@ -154,66 +161,69 @@ def pagebreak(type='page', orient='portrait'):
 
 
 def paragraph(paratext, style='BodyText', breakbefore=False, jc='left'):
-    '''Make a new paragraph element, containing a run, and some text.
-    Return the paragraph element.
+    """
+    Return a new paragraph element containing *paratext*. The paragraph's
+    default style is 'Body Text', but a new style may be set using the
+    *style* parameter.
 
     @param string jc: Paragraph alignment, possible values:
                       left, center, right, both (justified), ...
                       see http://www.schemacentral.com/sc/ooxml/t-w_ST_Jc.html
                       for a full list
 
-    If paratext is a list, spawn multiple run/text elements.
-    Support text styles (paratext must then be a list of lists in the form
-    <text> / <style>. Stile is a string containing a combination od 'bui' chars
+    If *paratext* is a list, add a run for each (text, char_format_str)
+    2-tuple in the list. char_format_str is a string containing one or more
+    of the characters 'b', 'i', or 'u', meaning bold, italic, and underline
+    respectively. For example:
 
-    example
-    paratext =\
-        [ ('some bold text', 'b')
-        , ('some normal text', '')
-        , ('some italic underlined text', 'iu')
+        paratext = [
+            ('some bold text', 'b'),
+            ('some normal text', ''),
+            ('some italic underlined text', 'iu')
         ]
-
-    '''
+    """
     # Make our elements
     paragraph = makeelement('p')
 
-    if isinstance(paratext, list):
-        text = []
-        for pt in paratext:
-            if isinstance(pt, (list, tuple)):
-                text.append([makeelement('t', tagtext=pt[0]), pt[1]])
-            else:
-                text.append([makeelement('t', tagtext=pt), ''])
-    else:
-        text = [[makeelement('t', tagtext=paratext), ''], ]
+    if not isinstance(paratext, list):
+        paratext = [(paratext, '')]
+    text_tuples = []
+    for pt in paratext:
+        text, char_styles_str = (pt if isinstance(pt, (list, tuple))
+                                 else (pt, ''))
+        text_elm = makeelement('t', tagtext=text)
+        if len(text.strip()) < len(text):
+            text_elm.set('{http://www.w3.org/XML/1998/namespace}space',
+                         'preserve')
+        text_tuples.append([text_elm, char_styles_str])
     pPr = makeelement('pPr')
     pStyle = makeelement('pStyle', attributes={'val': style})
     pJc = makeelement('jc', attributes={'val': jc})
     pPr.append(pStyle)
     pPr.append(pJc)
 
-    # Add the text the run, and the run to the paragraph
+    # Add the text to the run, and the run to the paragraph
     paragraph.append(pPr)
-    for t in text:
+    for text_elm, char_styles_str in text_tuples:
         run = makeelement('r')
         rPr = makeelement('rPr')
         # Apply styles
-        if t[1].find('b') > -1:
+        if 'b' in char_styles_str:
             b = makeelement('b')
             rPr.append(b)
-        if t[1].find('u') > -1:
-            u = makeelement('u', attributes={'val': 'single'})
-            rPr.append(u)
-        if t[1].find('i') > -1:
+        if 'i' in char_styles_str:
             i = makeelement('i')
             rPr.append(i)
+        if 'u' in char_styles_str:
+            u = makeelement('u', attributes={'val': 'single'})
+            rPr.append(u)
         run.append(rPr)
         # Insert lastRenderedPageBreak for assistive technologies like
         # document narrators to know when a page break occurred.
         if breakbefore:
             lastRenderedPageBreak = makeelement('lastRenderedPageBreak')
             run.append(lastRenderedPageBreak)
-        run.append(t[0])
+        run.append(text_elm)
         paragraph.append(run)
     # Return the combined paragraph
     return paragraph
@@ -247,16 +257,21 @@ def contenttypes():
                                  attributes={'PartName': part,
                                              'ContentType': parts[part]}))
     # Add support for filetypes
-    filetypes = {'gif':  'image/gif',
-                 'jpeg': 'image/jpeg',
-                 'jpg':  'image/jpeg',
-                 'png':  'image/png',
-                 'rels': 'application/vnd.openxmlformats-package.relationships+xml',
-                 'xml':  'application/xml'}
+    filetypes = {
+        'gif':  'image/gif',
+        'jpeg': 'image/jpeg',
+        'jpg':  'image/jpeg',
+        'png':  'image/png',
+        'rels': 'application/vnd.openxmlformats-package.relationships+xml',
+        'xml':  'application/xml'
+    }
     for extension in filetypes:
-        types.append(makeelement('Default', nsprefix=None,
-                                 attributes={'Extension': extension,
-                                             'ContentType': filetypes[extension]}))
+        attrs = {
+            'Extension':   extension,
+            'ContentType': filetypes[extension]
+        }
+        default_elm = makeelement('Default', nsprefix=None, attributes=attrs)
+        types.append(default_elm)
     return types
 
 
@@ -266,7 +281,8 @@ def heading(headingtext, headinglevel, lang='en'):
     # Make our elements
     paragraph = makeelement('p')
     pr = makeelement('pPr')
-    pStyle = makeelement('pStyle', attributes={'val': lmap[lang]+str(headinglevel)})
+    pStyle = makeelement(
+        'pStyle', attributes={'val': lmap[lang]+str(headinglevel)})
     run = makeelement('r')
     text = makeelement('t', tagtext=headingtext)
     # Add the text the run, and the run to the paragraph
@@ -278,7 +294,8 @@ def heading(headingtext, headinglevel, lang='en'):
     return paragraph
 
 
-def table(contents, heading=True, colw=None, cwunit='dxa', tblw=0, twunit='auto', borders={}, celstyle=None):
+def table(contents, heading=True, colw=None, cwunit='dxa', tblw=0,
+          twunit='auto', borders={}, celstyle=None):
     """
     Return a table element based on specified parameters
 
@@ -322,7 +339,8 @@ def table(contents, heading=True, colw=None, cwunit='dxa', tblw=0, twunit='auto'
     tableprops = makeelement('tblPr')
     tablestyle = makeelement('tblStyle', attributes={'val': ''})
     tableprops.append(tablestyle)
-    tablewidth = makeelement('tblW', attributes={'w': str(tblw), 'type': str(twunit)})
+    tablewidth = makeelement(
+        'tblW', attributes={'w': str(tblw), 'type': str(twunit)})
     tableprops.append(tablewidth)
     if len(borders.keys()):
         tableborders = makeelement('tblBorders')
@@ -341,7 +359,8 @@ def table(contents, heading=True, colw=None, cwunit='dxa', tblw=0, twunit='auto'
     # Table Grid
     tablegrid = makeelement('tblGrid')
     for i in range(columns):
-        tablegrid.append(makeelement('gridCol', attributes={'w': str(colw[i]) if colw else '2390'}))
+        attrs = {'w': str(colw[i]) if colw else '2390'}
+        tablegrid.append(makeelement('gridCol', attributes=attrs))
     table.append(tablegrid)
     # Heading Row
     row = makeelement('tr')
@@ -412,11 +431,14 @@ def table(contents, heading=True, colw=None, cwunit='dxa', tblw=0, twunit='auto'
     return table
 
 
-def picture(relationshiplist, picname, picdescription, pixelwidth=None, pixelheight=None, nochangeaspect=True, nochangearrowheads=True, imagefiledict=None):
-    '''Take a relationshiplist, picture file name, and return a paragraph containing the image
-    and an updated relationshiplist'''
+def picture(relationshiplist, picname, picdescription, pixelwidth=None,
+	        pixelheight=None, nochangeaspect=True, nochangearrowheads=True,
+	        imagefiledict=None):
+    '''Take a relationshiplist, picture file name, and return a paragraph
+    containing the image and an updated relationshiplist'''
     if imagefiledict is None:
-        warn('Using picture() without imagefiledict parameter will be deprecated in the future.', PendingDeprecationWarning)
+        warn('Using picture() without imagefiledict parameter will be deprecated in the future.',
+             PendingDeprecationWarning)
 
     # http://openxmldeveloper.org/articles/462.aspx
     # Create an image. Size may be specified, otherwise it will based on the
@@ -485,7 +507,8 @@ def picture(relationshiplist, picname, picdescription, pixelwidth=None, pixelhei
     height = str(pixelheight * emuperpixel)
 
     # There are 3 main elements inside a picture
-    # 1. The Blipfill - specifies how the image fills the picture area (stretch, tile, etc.)
+    # 1. The Blipfill - specifies how the image fills the picture area
+    #    (stretch, tile, etc.)
     blipfill = makeelement('blipFill', nsprefix='pic')
     blipfill.append(makeelement('blip', nsprefix='a', attrnsprefix='r',
                     attributes={'embed': picrelid}))
@@ -500,9 +523,10 @@ def picture(relationshiplist, picname, picdescription, pixelwidth=None, pixelhei
                         attributes={'id': '0', 'name': 'Picture 1', 'descr': picdescription})
     nvpicpr.append(cnvpr)
     cnvpicpr = makeelement('cNvPicPr', nsprefix='pic')
-    cnvpicpr.append(makeelement('picLocks', nsprefix='a',
-                    attributes={'noChangeAspect': str(int(nochangeaspect)),
-                                'noChangeArrowheads': str(int(nochangearrowheads))}))
+    cnvpicpr.append(makeelement(
+        'picLocks', nsprefix='a',
+        attributes={'noChangeAspect': str(int(nochangeaspect)),
+                    'noChangeArrowheads': str(int(nochangearrowheads))}))
     nvpicpr.append(cnvpicpr)
 
     # 3. The Shape properties
@@ -525,9 +549,10 @@ def picture(relationshiplist, picname, picdescription, pixelwidth=None, pixelhei
 
     # Now make the supporting elements
     # The following sequence is just: make element, then add its children
-    graphicdata = makeelement('graphicData', nsprefix='a',
-                              attributes={'uri': 'http://schemas.openxmlforma'
-                                                 'ts.org/drawingml/2006/picture'})
+    graphicdata = makeelement(
+        'graphicData', nsprefix='a',
+        attributes={'uri': ('http://schemas.openxmlformats.org/drawingml/200'
+                            '6/picture')})
     graphicdata.append(pic)
     graphic = makeelement('graphic', nsprefix='a')
     graphic.append(graphicdata)
@@ -578,7 +603,10 @@ def search(document, search):
 
 
 def replace(document, search, replace):
-    '''Replace all occurences of string with a different string, return updated document'''
+    """
+    Replace all occurences of string with a different string, return updated
+    document
+    """
     newdocument = document
     searchre = re.compile(search)
     for element in newdocument.iter():
@@ -793,45 +821,62 @@ def advReplace(document, search, replace, bs=3):
                                 # I've found something :)
                                 if DEBUG:
                                     log.debug("Found element!")
-                                    log.debug("Search regexp: %s", searchre.pattern)
-                                    log.debug("Requested replacement: %s", replace)
+                                    log.debug("Search regexp: %s",
+                                              searchre.pattern)
+                                    log.debug("Requested replacement: %s",
+                                              replace)
                                     log.debug("Matched text: %s", txtsearch)
-                                    log.debug("Matched text (splitted): %s", map(lambda i: i.text, searchels))
-                                    log.debug("Matched at position: %s", match.start())
+                                    log.debug("Matched text (splitted): %s",
+                                              map(lambda i: i.text, searchels))
+                                    log.debug("Matched at position: %s",
+                                              match.start())
                                     log.debug("matched in elements: %s", e)
                                     if isinstance(replace, etree._Element):
                                         log.debug("Will replace with XML CODE")
                                     elif isinstance(replace(list, tuple)):
-                                        log.debug("Will replace with LIST OF ELEMENTS")
+                                        log.debug("Will replace with LIST OF"
+                                                  " ELEMENTS")
                                     else:
-                                        log.debug("Will replace with:", re.sub(search, replace, txtsearch))
+                                        log.debug("Will replace with:",
+                                                  re.sub(search, replace,
+                                                         txtsearch))
 
                                 curlen = 0
                                 replaced = False
                                 for i in e:
                                     curlen += len(searchels[i].text)
                                     if curlen > match.start() and not replaced:
-                                        # The match occurred in THIS element. Puth in the
-                                        # whole replaced text
+                                        # The match occurred in THIS element.
+                                        # Puth in the whole replaced text
                                         if isinstance(replace, etree._Element):
-                                            # Convert to a list and process it later
+                                            # Convert to a list and process
+                                            # it later
                                             replace = [replace]
                                         if isinstance(replace, (list, tuple)):
-                                            # I'm replacing with a list of etree elements
-                                            # clear the text in the tag and append the element after the
+                                            # I'm replacing with a list of
+                                            # etree elements
+                                            # clear the text in the tag and
+                                            # append the element after the
                                             # parent paragraph
-                                            # (because t elements cannot have childs)
-                                            p = findTypeParent(searchels[i], '{%s}p' % nsprefixes['w'])
-                                            searchels[i].text = re.sub(search, '', txtsearch)
-                                            insindex = p.getparent().index(p) + 1
+                                            # (because t elements cannot have
+                                            # childs)
+                                            p = findTypeParent(
+                                                searchels[i],
+                                                '{%s}p' % nsprefixes['w'])
+                                            searchels[i].text = re.sub(
+                                                search, '', txtsearch)
+                                            insindex = p.getparent().index(p)+1
                                             for r in replace:
-                                                p.getparent().insert(insindex, r)
+                                                p.getparent().insert(
+                                                    insindex, r)
                                                 insindex += 1
                                         else:
                                             # Replacing with pure text
-                                            searchels[i].text = re.sub(search, replace, txtsearch)
+                                            searchels[i].text = re.sub(
+                                                search, replace, txtsearch)
                                         replaced = True
-                                        log.debug("Replacing in element #: %s", i)
+                                        log.debug(
+                                            "Replacing in element #: %s", i)
                                     else:
                                         # Clears the other text elements
                                         searchels[i].text = ''
@@ -847,8 +892,9 @@ def getdocumenttext(document):
         # Find p (paragraph) elements
         if element.tag == '{'+nsprefixes['w']+'}p':
             paralist.append(element)
-    # Since a single sentence might be spread over multiple text elements, iterate through each
-    # paragraph, appending all text (t) children to that paragraphs text.
+    # Since a single sentence might be spread over multiple text elements,
+    # iterate through each paragraph, appending all text (t) children to that
+    # paragraphs text.
     for para in paralist:
         paratext = u''
         # Loop through each paragraph
@@ -866,27 +912,37 @@ def getdocumenttext(document):
 
 
 def coreproperties(title, subject, creator, keywords, lastmodifiedby=None):
-    '''Create core properties (common document properties referred to in the 'Dublin Core' specification).
-    See appproperties() for other stuff.'''
+    """
+    Create core properties (common document properties referred to in the
+    'Dublin Core' specification). See appproperties() for other stuff.
+    """
     coreprops = makeelement('coreProperties', nsprefix='cp')
     coreprops.append(makeelement('title', tagtext=title, nsprefix='dc'))
     coreprops.append(makeelement('subject', tagtext=subject, nsprefix='dc'))
     coreprops.append(makeelement('creator', tagtext=creator, nsprefix='dc'))
-    coreprops.append(makeelement('keywords', tagtext=','.join(keywords), nsprefix='cp'))
+    coreprops.append(makeelement('keywords', tagtext=','.join(keywords),
+                     nsprefix='cp'))
     if not lastmodifiedby:
         lastmodifiedby = creator
-    coreprops.append(makeelement('lastModifiedBy', tagtext=lastmodifiedby, nsprefix='cp'))
+    coreprops.append(makeelement('lastModifiedBy', tagtext=lastmodifiedby,
+                     nsprefix='cp'))
     coreprops.append(makeelement('revision', tagtext='1', nsprefix='cp'))
-    coreprops.append(makeelement('category', tagtext='Examples', nsprefix='cp'))
-    coreprops.append(makeelement('description', tagtext='Examples', nsprefix='dc'))
+    coreprops.append(
+        makeelement('category', tagtext='Examples', nsprefix='cp'))
+    coreprops.append(
+        makeelement('description', tagtext='Examples', nsprefix='dc'))
     currenttime = time.strftime('%Y-%m-%dT%H:%M:%SZ')
     # Document creation and modify times
     # Prob here: we have an attribute who name uses one namespace, and that
     # attribute's value uses another namespace.
     # We're creating the element from a string as a workaround...
     for doctime in ['created', 'modified']:
-        coreprops.append(etree.fromstring('''<dcterms:'''+doctime+''' xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dcterms="http://purl.org/dc/terms/" xsi:type="dcterms:W3CDTF">'''+currenttime+'''</dcterms:'''+doctime+'''>'''))
-        pass
+        elm_str = (
+            '<dcterms:%s xmlns:xsi="http://www.w3.org/2001/XMLSchema-instanc'
+            'e" xmlns:dcterms="http://purl.org/dc/terms/" xsi:type="dcterms:'
+            'W3CDTF">%s</dcterms:%s>'
+        ) % (doctime, currenttime, doctime)
+        coreprops.append(etree.fromstring(elm_str))
     return coreprops
 
 
@@ -969,13 +1025,16 @@ def wordrelationships(relationshiplist):
     return relationships
 
 
-def savedocx(document, coreprops, appprops, contenttypes, websettings, wordrelationships, output, imagefiledict=None):
+def savedocx(document, coreprops, appprops, contenttypes, websettings,
+	         wordrelationships, output, imagefiledict=None):
     '''Save a modified document'''
     if imagefiledict is None:
-        warn('Using savedocx() without imagefiledict parameter will be deprecated in the future.', PendingDeprecationWarning)
+        warn('Using savedocx() without imagefiledict parameter will be deprecated in the future.',
+             PendingDeprecationWarning)
 
     assert os.path.isdir(template_dir)
-    docxfile = zipfile.ZipFile(output, mode='w', compression=zipfile.ZIP_DEFLATED)
+    docxfile = zipfile.ZipFile(
+        output, mode='w', compression=zipfile.ZIP_DEFLATED)
 
     # Move to the template data path
     prev_dir = os.path.abspath('.')  # save previous working dir
