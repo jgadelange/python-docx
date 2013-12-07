@@ -482,6 +482,9 @@ def picture(relationshiplist, picname, picdescription, pixelwidth=None,
         exif = image._getexif()
     except:
         exif = {}
+        
+    if exif is None:
+        exif = {}
 
     for tag, value in exif.items():
         imageExif[TAGS.get(tag, tag)] = value
