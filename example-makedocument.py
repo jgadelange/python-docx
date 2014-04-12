@@ -19,6 +19,9 @@ if __name__ == '__main__':
 
     # Make a new document tree - this is the main part of a Word document
     document = newdocument()
+    
+    # Make a dict in which you will store image data
+    imagefiledict = {}
 
     # This xpath location is where most interesting content lives
     body = document.xpath('/w:document/w:body', namespaces=nsprefixes)[0]
@@ -68,7 +71,8 @@ if __name__ == '__main__':
 
     # Add an image
     relationships, picpara = picture(relationships, 'image1.png',
-                                     'This is a test description')
+                                     'This is a test description',
+                                     imagefiledict=imagefiledict)
     body.append(picpara)
 
     # Search and replace
@@ -109,5 +113,6 @@ if __name__ == '__main__':
 
     # Save our document
     savedocx(document, coreprops, appprops, contenttypes, websettings,
-             wordrelationships, 'Welcome to the Python docx module.docx')
+             wordrelationships, 'Welcome to the Python docx module.docx',
+             imagefiledict=imagefiledict)
 
